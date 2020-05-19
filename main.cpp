@@ -99,42 +99,59 @@ void setupMQTT(std::string host, int port)
 
 void temperature(double &c, double &f, double &h)
 {
-    int file;
+    int fd;
     int bytes;
     static int lastHumidity = 0.0;
     double humidity;
+    nlohmann::json doc;
 
+    if ((fd = open("/dev/i2c-0", O_RDWR)) < 0) {
+        std::cerr << "Unable to open i2c-0: " << errno << std::endl;
+        return;
+    }
+    
+    if (ioctl(fd, I2C_SLAVE, 0x45) < 0) {
+        std::cerr << "Unable to aquire i2c bus: " << errno << std::endl;
+        close(fd);
+        return;
+    }
     // Send high repeatability measurement command
     // Command msb, command lsb(0x2c, 0x06)
-    uint8_t config[] = { 0x2c, 0x06 };
+    uint8_t config[] = { 0x24, 0x00 };
 
-    i2c_writeBuffer(0, 0x45, 0x00, config, 2);
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    write(fd, config, 2);
+    std::this_thread::sleep_for(std::chrono::milliseconds(1100));
 
     // Read 6 bytes of data
     // temp msb, temp lsb, temp CRC, humidity msb, humidity lsb, humidity CRC
     uint8_t data[6] = {0};
-    i2c_read(0, 0x45, 0x01, data, 6);
+    if ((bytes = read(fd, data, 6)) < 0) {
+        std::cerr << "Unable to read data from i2c device: " << errno << std::endl;
+        close(fd);
+        return;
+    }
 
-    std::cout << "Read " << bytes << " bytes from /dev/i2c-0" << std::endl;
-
+    std::cout << "RAW: ";
+    for (int i = 0; i < bytes; i++) {
+        std::cout << "0x" << static_cast<uint32_t>(data[i]) << " ";
+    }
+    std::cout << std::endl;
+    
     // Convert the data
     if (!CRC8(data[0], data[1], data[2])) {
-        for (int i = 0; i < 6; i++) {
-            std::cout << "0x" << static_cast<uint32_t>(data[i]) << " ";
-        }
-        std::cout << std::endl;
-        close(file);
+        std::cout << "Bad temp data" << std::endl;
+        close(fd);
         return;
+    }
+    else {
+        doc["environment"]["celsius"] = c;
+        doc["environment"]["farenheit"] = f;
     }
     std::cout << "Temp CRC passed" << std::endl;
 
     if (!CRC8(data[3], data[4], data[5])) {
-        for (int i = 0; i < 6; i++) {
-            std::cout << "0x" << static_cast<uint32_t>(data[i]) << " ";
-        }
-        std::cout << std::endl;
-        close(file);
+        std::cout << "Bad humidity data" << std::endl;
+        close(fd);
         return;
     }
     std::cout << "Temp CRC passed" << std::endl;
@@ -150,14 +167,11 @@ void temperature(double &c, double &f, double &h)
         lastHumidity = humidity;
 
     h = lastHumidity;
-    nlohmann::json doc;
-    doc["environment"]["celsius"] = c;
-    doc["environment"]["farenheit"] = f;
     doc["environment"]["humidity"] = h;
     g_client->publish(NULL, "planter/environment", doc.dump().size(), doc.dump().c_str(), 0, false);
     std::cout << "Payload size: " << doc.dump().size() << ": " << doc.dump() << std::endl;
 
-    close(file);
+    close(fd);
 }
 
 int main(int argc, char *argv[])
