@@ -12,5 +12,5 @@ include_directories (BEFORE "${CMAKE_CURRENT_SOURCE_DIR}/")
 SET (CMAKE_INCLUDE_CURRENT_DIR ON)
 
 add_executable (${PROJECT_NAME} ${SOURCES} ${HEADERS})
-target_link_libraries(${PROJECT_NAME} -loniondebug -lonioni2c -lonionoledexp -lonionmcp23008 -lonionrelayexp)
+target_link_libraries(${PROJECT_NAME} -loniondebug -lonioni2c -lonionrelayexp -lmosquittopp)
 

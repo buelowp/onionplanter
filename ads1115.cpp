@@ -58,7 +58,7 @@ void ads1115::close()
     m_fd = -1;
 }
 
-std::map<int, int> ads1115::rawValues()
+bool ads1115::rawValues(std::map<int,int> &values)
 {
     uint8_t writeBuf[3];
     uint8_t readBuf[2];
@@ -98,15 +98,15 @@ std::map<int, int> ads1115::rawValues()
         // begin conversion
         if (write(m_fd, writeBuf, 3) != 3) {
             fprintf(stderr, "%s: write: %s(%d)\n", __FUNCTION__, strerror(errno), errno);
-            exit(-1);
+            return false;
         }
 
         // wait for conversion complete
         // checking bit 15
         do {
             if (read(m_fd, writeBuf, 2) != 2) {
-            fprintf(stderr, "%s: read: %s(%d)\n", __FUNCTION__, strerror(errno), errno);
-                exit(-1);
+                fprintf(stderr, "%s: read: %s(%d)\n", __FUNCTION__, strerror(errno), errno);
+                return false;
             }
         }
         while ((writeBuf[0] & 0x80) == 0);
@@ -116,13 +116,13 @@ std::map<int, int> ads1115::rawValues()
         readBuf[0] = 0;     // conversion register is 0
         if (write(m_fd, readBuf, 1) != 1) {
             fprintf(stderr, "%s: write: %s(%d)\n", __FUNCTION__, strerror(errno), errno);
-            exit(-1);
+            return false;
         }
         
         // read 2 bytes
         if (read(m_fd, readBuf, 2) != 2) {
             fprintf(stderr, "%s: read: %s(%d)\n", __FUNCTION__, strerror(errno), errno);
-            exit(-1);
+            return false;
         }
 
         // convert display results
@@ -131,11 +131,10 @@ std::map<int, int> ads1115::rawValues()
         if (val < 0)     
             val = 0;
 
-        readings[i] = val;
+        values[i] = val;
     }
 
-    if (readings.size())
-        return readings;
+    return true;
 }
 
 std::map<int, double> ads1115::voltages()

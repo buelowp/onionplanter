@@ -45,7 +45,7 @@ public:
 
     bool open(int);
     void close();
-    std::map<int, int> rawValues();
+    bool rawValues(std::map<int,int>&);
     std::map<int, double> voltages();
     
 private:
