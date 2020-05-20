@@ -61,6 +61,7 @@ public:
     void on_unsubscribe(int) override;
     void on_message(const struct mosquitto_message*) override;
     void on_publish(int) override;
+    void on_log(int level, const char *msg);
         
 private:
     std::string m_name;
