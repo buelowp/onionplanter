@@ -13,11 +13,13 @@
 #include <oled-exp.h>
 #include <relay-exp.h>
 #include <nlohmann/json.hpp>
+#include <sys/sysinfo.h>
 
 #include "mqttclient.h"
 #include "dht_read.h"
 
 MQTTClient *g_client;
+std::string g_mqttname;
 
 /**
  * \func void get_name(std::string &name)
@@ -68,10 +70,9 @@ void mqttError(std::string msg, int err)
 void setupMQTT(std::string host, int port)
 {
     std::string name;
-//    get_name(name);
-    name = "testclient2";
+    get_name(g_mqttname);
     
-    g_client = new MQTTClient(name, host, port);
+    g_client = new MQTTClient(g_mqttname, host, port);
     g_client->setGenericCallback(genericCallback);
     g_client->setMessageCallback(incomingMessage);
     g_client->setErrorCallback(mqttError);
@@ -80,24 +81,37 @@ void setupMQTT(std::string host, int port)
 void temperature(double &c, double &f, double &h)
 {
     nlohmann::json doc;
+    struct sysinfo info;
     float humidity = 0.0f;
     float temperature = 0.0f;
     int result = 0;
     int maxRetry = 3;
+    int state;
   
+    if (sysinfo(&info) < 0) {
+        std::cerr << "Unable to get sysinfo" << std::endl;
+    }
+    
+    if (relayReadChannel (7, 1, &state) == EXIT_FAILURE)
+        state = -1;
+    
     do {
         result = dht_read(DHT22, 19, &humidity, &temperature);
         maxRetry--;
     } while(result != 0 && maxRetry > 0);
     
     if (result == 0 && maxRetry > 0) {
+        doc["location"] = "familyroom";
+        doc["system"]["name"] = g_mqttname;
+        doc["system"]["uptime"] = info.uptime;
+        doc["light"] = state;
         doc["environment"]["humidity"] = humidity;
         doc["environment"]["celsius"] = temperature;
+        doc["environment"]["farenheit"] = temperature * 1.8 + 32;
         if (g_client->isConnected())
             g_client->publish(NULL, "planter/environment", doc.dump().size(), doc.dump().c_str(), 0, false);
         else
             std::cout << "not connected" << std::endl;
-        std::cout << "Payload size: " << doc.dump().size() << ": " << doc.dump() << std::endl;
     }
 }
 
@@ -122,20 +136,14 @@ int main(int argc, char *argv[])
     while (1) {
         time_t ttime = time(0);
         tm *lt = localtime(&ttime);
-        if (lt->tm_hour >= 20 && lt->tm_hour <= 6) {
-            if (relayState) {
-                relaySetChannel(7, 1, 0);
-                relayState = false;
-            }
+        if (lt->tm_hour >= 20 || lt->tm_hour <= 6) {
+            relaySetChannel(7, 1, 0);
         }
         else {
-            if (!relayState) {
-                relaySetChannel(7, 1, 1);
-                relayState = true;
-            }
+            relaySetChannel(7, 1, 1);
         }
 
         temperature(c, f, h);
-        std::this_thread::sleep_for(std::chrono::seconds(10));
+        std::this_thread::sleep_for(std::chrono::seconds(60));
     }
 }

@@ -40,7 +40,6 @@
 MQTTClient::MQTTClient(std::string &id, std::string host, int port) : mosqpp::mosquittopp(id.c_str()),
     m_name(id), m_host(host), m_port(port)
 {
-    std::cout << "id: " << id << std::endl;
     m_debug = false;
     m_connected = false;
     mosqpp::lib_init();			// Initialize libmosquitto
@@ -48,7 +47,6 @@ MQTTClient::MQTTClient(std::string &id, std::string host, int port) : mosqpp::mo
 	int keepalive = 120; // seconds
     
 	int code = connect(m_host.c_str(), m_port, keepalive);
-    std::cout << "Got return code " << code << std::endl;
     loop_start();
 }
 
@@ -125,7 +123,6 @@ void MQTTClient::on_subscribe(int mid, int, const int*)
 
 void MQTTClient::on_error()
 {
-    std::cout << "on_error: errno: " << errno << std::endl;
     if (m_errorCallback) {
         try {
             m_errorCallback(std::string("UNKNOWN"), errno);
@@ -184,5 +181,5 @@ void MQTTClient::on_unsubscribe(int mid)
 
 void MQTTClient::on_log(int level, const char* msg)
 {
-    std::cout << "MQTT LOG: " << msg << std::endl;
+//    std::cout << "MQTT LOG: " << msg << std::endl;
 }
